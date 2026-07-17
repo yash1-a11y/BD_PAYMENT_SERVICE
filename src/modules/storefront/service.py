@@ -16,6 +16,7 @@ from src.modules.storefront.schemas import (
     PackagePdpOut,
     PlanOut,
     SectionOut,
+    TestimonialOut,
 )
 
 
@@ -62,6 +63,7 @@ def _to_pdp_out(entry: BDLandingPage, storefront: StorefrontPackage) -> PackageP
         overview_html=storefront.overview_html,
         sections=[SectionOut.model_validate(s) for s in storefront.sections],
         faqs=[FaqOut.model_validate(f) for f in storefront.faqs],
+        testimonials=[TestimonialOut.model_validate(t) for t in storefront.testimonials],
     )
 
 

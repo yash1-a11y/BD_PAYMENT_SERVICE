@@ -70,6 +70,14 @@ class Faq:
 
 
 @dataclass
+class Testimonial:
+    name: str
+    image: str | None
+    rating: int
+    description: str
+
+
+@dataclass
 class StorefrontPackage:
     package_id: str
     title: str
@@ -82,6 +90,7 @@ class StorefrontPackage:
     plan: Plan | None
     highlights: list[str]
     exam_badges: list[ExamBadge]
+    testimonials: list[Testimonial]
     faculties: list[Faculty]
     overview_html: str | None
     sections: list[ContentSection]
@@ -121,9 +130,6 @@ def fetch_package(package_id: str) -> PackageDetails:
         india_mrp=entity.get("maxPrice"),
         published=bool(entity.get("published")),
     )
-
-
-_SECTION_TITLES = ("This Package Includes", "Subjects Covered", "Note", "Study Plan")
 
 
 def fetch_storefront_package(package_id: str) -> StorefrontPackage:
@@ -183,9 +189,9 @@ def fetch_storefront_package(package_id: str) -> StorefrontPackage:
     ]
 
     sections = [
-        ContentSection(title=item["title"], html=item.get("desc", ""))
+        ContentSection(title=item["title"], html=item["desc"])
         for item in (entity.get("additionalDesc") or [])
-        if item.get("title") in _SECTION_TITLES and item.get("desc")
+        if item.get("title") and item.get("desc")
     ]
 
     faqs = [
@@ -193,6 +199,17 @@ def fetch_storefront_package(package_id: str) -> StorefrontPackage:
         for raw in (entity.get("faqJson") or [])
         if (q := raw.get("question") or raw.get("q"))
         and (a := raw.get("answer") or raw.get("a") or raw.get("ans"))
+    ]
+
+    testimonials = [
+        Testimonial(
+            name=t.get("name", ""),
+            image=t.get("s3URL"),
+            rating=int(t.get("rating") or 0),
+            description=t.get("description", ""),
+        )
+        for t in (entity.get("testimonialJson") or [])
+        if t.get("name") and t.get("description")
     ]
 
     return StorefrontPackage(
@@ -211,5 +228,6 @@ def fetch_storefront_package(package_id: str) -> StorefrontPackage:
         overview_html=entity.get("overview") or entity.get("description") or None,
         sections=sections,
         faqs=faqs,
+        testimonials=testimonials,
         published=bool(entity.get("published")),
     )

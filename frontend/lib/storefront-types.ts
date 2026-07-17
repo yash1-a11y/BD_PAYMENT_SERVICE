@@ -30,6 +30,13 @@ export interface Faq {
   answer: string;
 }
 
+export interface Testimonial {
+  name: string;
+  image: string | null;
+  rating: number;
+  description: string;
+}
+
 export interface PackageListing {
   package_id: string;
   display_code: string;
@@ -65,4 +72,5 @@ export interface PackagePdp {
   overview_html: string | null;
   sections: Section[];
   faqs: Faq[];
+  testimonials: Testimonial[];
 }

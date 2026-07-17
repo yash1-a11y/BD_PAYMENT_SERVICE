@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteHeader } from "@/components/storefront/SiteHeader";
 import { listPackages } from "@/lib/storefront-api";
 import { formatTaka, listingMetaLine } from "@/lib/storefront-format";
 
@@ -7,10 +8,7 @@ export default async function SkillBanglaListingPage() {
 
   return (
     <div>
-      <header className="border-b border-sb-border bg-sb-card px-6 py-4">
-        <span className="text-xl font-extrabold text-sb-red">adda247</span>
-        <div className="text-xs font-semibold tracking-wide text-sb-muted">SKILL BANGLA</div>
-      </header>
+      <SiteHeader />
 
       <section
         className="px-6 py-10"
@@ -19,10 +17,6 @@ export default async function SkillBanglaListingPage() {
         <h1 className="text-2xl md:text-3xl font-bold text-white">
           Skill courses in Bangla, taught live
         </h1>
-        <p className="mt-2 max-w-2xl text-sm text-white/80">
-          Job-ready skill programmes from Adda247 — learn on the Adda247 app or website with the
-          same phone number you use at checkout.
-        </p>
       </section>
 
       <main className="px-6 py-8">

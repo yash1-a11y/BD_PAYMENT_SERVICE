@@ -54,6 +54,22 @@ body {
 }
 
 @layer components {
+  /* The Package System's rich-text HTML carries legacy inline
+     background-color/color/font-family on almost every <span> (copy-pasted
+     from Word/Google Docs). Strip all of it so content reads as plain,
+     consistent body text instead of a patchwork of colored/white boxes. */
+  .sb-html-content {
+    background-color: transparent !important;
+    color: inherit !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+  }
+  .sb-html-content * {
+    background-color: transparent !important;
+    color: inherit !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+  }
   .sb-html-content ul {
     list-style: none;
     padding-left: 0;
@@ -68,11 +84,11 @@ body {
     content: "✓";
     position: absolute;
     left: 0;
-    color: var(--color-sb-green);
+    color: var(--color-sb-green) !important;
     font-weight: 700;
   }
   .sb-html-content a {
-    color: var(--color-sb-blue);
+    color: var(--color-sb-blue) !important;
     text-decoration: underline;
   }
   .sb-html-content p {

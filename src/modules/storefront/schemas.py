@@ -45,6 +45,15 @@ class FaqOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TestimonialOut(BaseModel):
+    name: str
+    image: str | None
+    rating: int
+    description: str
+
+    model_config = {"from_attributes": True}
+
+
 class PackageListingOut(BaseModel):
     package_id: str
     display_code: str
@@ -80,3 +89,4 @@ class PackagePdpOut(BaseModel):
     overview_html: str | None
     sections: list[SectionOut]
     faqs: list[FaqOut]
+    testimonials: list[TestimonialOut]

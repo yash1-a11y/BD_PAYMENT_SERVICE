@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FacultyCarousel } from "@/components/storefront/FacultyCarousel";
 import { FaqAccordion } from "@/components/storefront/FaqAccordion";
+import { PdpStickyChrome } from "@/components/storefront/PdpStickyChrome";
+import { SiteHeader } from "@/components/storefront/SiteHeader";
+import { TestimonialCarousel } from "@/components/storefront/TestimonialCarousel";
 import { getPackage, StorefrontApiError } from "@/lib/storefront-api";
 import { formatShortDate, formatTaka } from "@/lib/storefront-format";
 import { PackagePdp } from "@/lib/storefront-types";
@@ -12,14 +16,103 @@ const SALIENT_FEATURES = [
   "Limited Batch Size",
 ];
 
+// Generic, storefront-level FAQs — not package data. Every real package
+// checked returns an empty faqJson, so these always render; any real
+// per-package FAQs are shown first.
+const GENERIC_FAQS = [
+  {
+    question: "How to attend Live Classes after purchase?",
+    answer:
+      "After your purchase is confirmed, you'll get access details for the live classes on the Adda247 app or website using the same phone number you checked out with.",
+  },
+  {
+    question: "How to check the study plan?",
+    answer:
+      "The Study Plan tab on this page lists the topic-wise plan for this course, with links to the detailed schedule.",
+  },
+  {
+    question: "How to get class notifications?",
+    answer:
+      "Enable notifications in the Adda247 app, or check the class schedule under My Courses — you'll be notified before each live class starts.",
+  },
+  {
+    question: "How to access PDF/Handouts of live class?",
+    answer:
+      "Handouts and PDFs shared during live classes are available under the class's resources section in the Adda247 app or website.",
+  },
+  {
+    question: "What if I miss my live classes?",
+    answer:
+      "No problem — recorded videos of every live class are available so you can catch up at your convenience.",
+  },
+  {
+    question: "Will I get topic wise test / daily quizzes in the package?",
+    answer:
+      "Yes, if this course includes test series access, topic-wise tests and daily quizzes are available as part of it.",
+  },
+  {
+    question: "Can I re-attempt the test?",
+    answer: "Yes, tests included in this course can be re-attempted to help you track improvement.",
+  },
+  {
+    question: "How can test series help me?",
+    answer:
+      "Test series help you practice with the latest exam pattern, identify weak areas, and track your progress with detailed solutions.",
+  },
+  {
+    question: "When will the mock be live in my account?",
+    answer:
+      "Mocks included in this course are activated in your account as per the schedule shown under Test Series — check My Courses for exact dates.",
+  },
+  {
+    question: "How to access the test series?",
+    answer: "Go to My Courses on the Adda247 app or website and open the Test Series section for this course.",
+  },
+  {
+    question: "How to access video course?",
+    answer: "Recorded videos are available under My Courses in the Adda247 app or website, playable anytime.",
+  },
+  {
+    question: "How is a video course different from a live class?",
+    answer:
+      "A video course is pre-recorded content you can watch anytime, while live classes happen at a scheduled time with real-time interaction.",
+  },
+  {
+    question: "Can I download videos?",
+    answer: "Videos are available for streaming within the Adda247 app; offline download availability depends on this course's plan.",
+  },
+  {
+    question: "Is the video course updated with the latest content?",
+    answer: "Yes, video content is kept current with the latest exam pattern and syllabus updates.",
+  },
+  {
+    question: "Can I access videos after the subscription expires?",
+    answer: "No, video access is tied to your course validity period and ends once it expires.",
+  },
+  {
+    question: "Can I download or print Ebook?",
+    answer: "Ebooks included in this course are available to download and print from My Courses.",
+  },
+  {
+    question: "How can I check/know the language of the ebook?",
+    answer: "The ebook's language is listed alongside it under the Ebooks section in My Courses.",
+  },
+  {
+    question: "How to access ebooks?",
+    answer: "Go to My Courses on the Adda247 app or website and open the Ebooks section for this course.",
+  },
+  {
+    question: "Will I get ebooks immediately after purchase?",
+    answer: "Yes, ebooks included in this course are available in your account immediately after purchase.",
+  },
+];
+
 function includesChips(pkg: PackagePdp): string[] {
   const chips: string[] = [];
   if (pkg.live_classes_count > 0) chips.push(`${pkg.live_classes_count} Online Live Classes`);
   if (pkg.video_count > 0) chips.push(`${pkg.video_count} Videos`);
   return chips;
 }
-
-const SECTION_ORDER = ["This Package Includes", "Subjects Covered", "Note", "Study Plan"];
 
 export default async function PackagePdpPage({
   params,
@@ -37,30 +130,26 @@ export default async function PackagePdpPage({
   }
 
   const chips = includesChips(pkg);
-  const sectionsByTitle = new Map(pkg.sections.map((s) => [s.title, s.html]));
+  const faqs = [...pkg.faqs, ...GENERIC_FAQS];
 
   const tabs: { id: string; label: string }[] = [];
   if (pkg.overview_html) tabs.push({ id: "overview", label: "Overview" });
-  for (const title of SECTION_ORDER) {
-    if (sectionsByTitle.has(title)) {
-      tabs.push({ id: title.toLowerCase().replace(/\s+/g, "-"), label: title });
-    }
+  for (const section of pkg.sections) {
+    tabs.push({ id: section.title.toLowerCase().replace(/\s+/g, "-"), label: section.title });
   }
-  if (pkg.faqs.length > 0) tabs.push({ id: "faqs", label: "FAQs" });
+  tabs.push({ id: "faqs", label: "FAQs" });
+  if (pkg.testimonials.length > 0) tabs.push({ id: "testimonials", label: "Testimonials" });
 
   return (
     <div className="pb-24 md:pb-0">
-      <header className="border-b border-sb-border bg-sb-card px-6 py-4">
-        <span className="text-xl font-extrabold text-sb-red">adda247</span>
-        <div className="text-xs font-semibold tracking-wide text-sb-muted">SKILL BANGLA</div>
-      </header>
+      <SiteHeader />
 
       <div className="max-w-6xl mx-auto px-6 py-6">
         <Link href="/skill-bangla" className="text-sm text-sb-muted hover:underline">
           ← All courses
         </Link>
 
-        <div className="grid md:grid-cols-[1fr_360px] gap-8 mt-4">
+        <div className="grid md:grid-cols-[minmax(0,1fr)_360px] gap-8 mt-4">
           {/* Left column */}
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-sb-ink mb-3">{pkg.title}</h1>
@@ -191,66 +280,7 @@ export default async function PackagePdpPage({
                 <h2 className="font-bold text-sb-ink mb-3">
                   Faculty <span className="text-sb-red">Profile</span>
                 </h2>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {pkg.faculties.map((faculty) => (
-                    <div
-                      key={faculty.name}
-                      className="border border-sb-border rounded-[14px] p-4"
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-12 h-12 rounded-full bg-sb-gray-pill overflow-hidden shrink-0">
-                          {faculty.image && (
-                            // eslint-disable-next-line @next/next/no-img-element -- hotlinked external CDN image
-                            <img
-                              src={faculty.image}
-                              alt={faculty.name}
-                              className="w-full h-full object-cover"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-bold text-sb-ink text-sm">{faculty.name}</p>
-                          {faculty.subject && (
-                            <p className="text-xs text-sb-muted uppercase">{faculty.subject}</p>
-                          )}
-                        </div>
-                      </div>
-                      {faculty.demo_url && (
-                        <a
-                          href={faculty.demo_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-medium text-sb-blue hover:underline"
-                        >
-                          ▶ Play Demo
-                        </a>
-                      )}
-                      <ul className="mt-2 space-y-1">
-                        {faculty.experience_years && (
-                          <li className="flex gap-2 text-xs text-sb-ink">
-                            <span className="text-sb-green shrink-0">✓</span>
-                            <span>{faculty.experience_years}+ years of Experience</span>
-                          </li>
-                        )}
-                        {faculty.students_mentored > 0 && (
-                          <li className="flex gap-2 text-xs text-sb-ink">
-                            <span className="text-sb-green shrink-0">✓</span>
-                            <span>
-                              More than {faculty.students_mentored.toLocaleString("en-IN")} Aspirants
-                              Mentored
-                            </span>
-                          </li>
-                        )}
-                        {faculty.quote && (
-                          <li className="flex gap-2 text-xs text-sb-ink">
-                            <span className="text-sb-green shrink-0">✓</span>
-                            <span>{faculty.quote}</span>
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
+                <FacultyCarousel faculties={pkg.faculties} />
               </section>
             )}
           </div>
@@ -297,58 +327,59 @@ export default async function PackagePdpPage({
           </div>
         </div>
 
-        {/* Tabs + content sections */}
-        {tabs.length > 0 && (
-          <div className="mt-10">
-            <div className="sticky top-0 z-10 bg-sb-card border-y border-sb-border flex gap-6 px-1 overflow-x-auto">
-              {tabs.map((tab) => (
-                <a
-                  key={tab.id}
-                  href={`#${tab.id}`}
-                  className="py-3 text-sm font-medium text-sb-muted hover:text-sb-red whitespace-nowrap border-b-2 border-transparent hover:border-sb-red"
-                >
-                  {tab.label}
-                </a>
-              ))}
-            </div>
+      </div>
 
-            <div className="py-6 space-y-10">
-              {pkg.overview_html && (
-                <section id="overview" className="scroll-mt-16">
-                  <h2 className="font-bold text-sb-ink mb-3 text-lg">Overview</h2>
-                  <div
-                    className="sb-html-content text-sm text-sb-ink"
-                    dangerouslySetInnerHTML={{ __html: pkg.overview_html }}
-                  />
-                </section>
-              )}
+      {/* Sticky compact buy bar + tab bar (client component: scroll-tracked) */}
+      <PdpStickyChrome
+        tabs={tabs}
+        buyBar={{
+          packageId: pkg.package_id,
+          title: pkg.title,
+          thumbnailUrl: pkg.thumbnail_url,
+          priceBdt: pkg.price_bdt,
+          planTitle: pkg.plan?.validity_title ?? null,
+        }}
+      />
 
-              {SECTION_ORDER.map((title) => {
-                const html = sectionsByTitle.get(title);
-                if (!html) return null;
-                const id = title.toLowerCase().replace(/\s+/g, "-");
-                return (
-                  <section key={id} id={id} className="scroll-mt-16">
-                    <h2 className="font-bold text-sb-ink mb-3 text-lg">{title}</h2>
-                    <div
-                      className="sb-html-content text-sm text-sb-ink"
-                      dangerouslySetInnerHTML={{ __html: html }}
-                    />
-                  </section>
-                );
-              })}
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="py-6 space-y-10">
+          {pkg.overview_html && (
+            <section id="overview" className="scroll-mt-32">
+              <h2 className="font-bold text-sb-ink mb-3 text-lg">Overview</h2>
+              <div
+                className="sb-html-content text-sm text-sb-ink"
+                dangerouslySetInnerHTML={{ __html: pkg.overview_html }}
+              />
+            </section>
+          )}
 
-              {pkg.faqs.length > 0 && (
-                <section id="faqs" className="scroll-mt-16">
-                  <h2 className="font-bold text-sb-ink mb-3 text-lg">
-                    Frequently Asked <span className="text-sb-red">Questions</span>
-                  </h2>
-                  <FaqAccordion faqs={pkg.faqs} />
-                </section>
-              )}
-            </div>
-          </div>
-        )}
+          {pkg.sections.map((section) => {
+            const id = section.title.toLowerCase().replace(/\s+/g, "-");
+            return (
+              <section key={id} id={id} className="scroll-mt-32">
+                <h2 className="font-bold text-sb-ink mb-3 text-lg">{section.title}</h2>
+                <div
+                  className="sb-html-content text-sm text-sb-ink"
+                  dangerouslySetInnerHTML={{ __html: section.html }}
+                />
+              </section>
+            );
+          })}
+
+          <section id="faqs" className="scroll-mt-32">
+            <h2 className="font-bold text-sb-ink mb-3 text-lg">
+              Frequently Asked <span className="text-sb-red">Questions</span>
+            </h2>
+            <FaqAccordion faqs={faqs} />
+          </section>
+
+          {pkg.testimonials.length > 0 && (
+            <section id="testimonials" className="scroll-mt-32">
+              <h2 className="font-bold text-sb-ink mb-3 text-lg">Testimonials</h2>
+              <TestimonialCarousel testimonials={pkg.testimonials} />
+            </section>
+          )}
+        </div>
       </div>
 
       {/* Mobile sticky bottom bar */}
