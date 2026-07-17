@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: bd_payment_service
+      POSTGRES_USER: bd_payment
+      POSTGRES_PASSWORD: bd_payment
+    ports:
+      - "5432:5432"
+    volumes:
+      - bd_payment_pgdata:/var/lib/postgresql/data
+
+volumes:
+  bd_payment_pgdata:
