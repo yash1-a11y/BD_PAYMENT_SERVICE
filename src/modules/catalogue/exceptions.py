@@ -6,10 +6,6 @@ class DuplicatePackageIdError(Exception):
     pass
 
 
-class ImmutableFieldError(Exception):
-    pass
-
-
 class InvalidPriceError(Exception):
     pass
 

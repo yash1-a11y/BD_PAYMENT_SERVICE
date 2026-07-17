@@ -1,7 +1,11 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from src.config.settings import get_settings
+from src.db.base import get_db
 from src.modules.admin_auth.router import router as admin_auth_router
 from src.modules.admin_users.router import router as admin_users_router
 from src.modules.catalogue.router import router as catalogue_router
@@ -21,3 +25,15 @@ app.include_router(admin_auth_router)
 app.include_router(admin_users_router)
 app.include_router(catalogue_router)
 app.include_router(storefront_router)
+
+
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "unhealthy"},
+        )
+    return {"status": "ok"}

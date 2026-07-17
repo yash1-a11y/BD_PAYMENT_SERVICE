@@ -44,8 +44,3 @@ class PackageLookupOut(BaseModel):
     thumbnail_url: str | None
     india_mrp: float | None
     source_published: bool
-
-
-class FieldError(BaseModel):
-    field: str
-    message: str

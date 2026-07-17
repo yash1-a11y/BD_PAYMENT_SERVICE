@@ -6,8 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+psycopg://bd_payment:bd_payment@localhost:5432/bd_payment_service"
-    jwt_secret: str = "change-me"
+    database_url: str
+    jwt_secret: str
     jwt_expire_minutes: int = 60 * 24
     package_system_base_url: str = "https://search.adda247.com/v13/packages/info"
     package_system_src: str = "aweb"
