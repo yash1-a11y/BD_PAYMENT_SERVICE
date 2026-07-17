@@ -1,0 +1,2 @@
+class PackageUnavailableError(Exception):
+    pass
