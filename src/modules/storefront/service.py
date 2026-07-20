@@ -47,6 +47,7 @@ def _to_pdp_out(entry: BDLandingPage, storefront: StorefrontPackage) -> PackageP
         display_code=entry.display_code,
         title=storefront.title or entry.package_id,
         thumbnail_url=storefront.thumbnail_url,
+        demo_url=storefront.demo_url,
         price_bdt=entry.price_bdt,
         language=storefront.language,
         batch_type=_batch_type(storefront),

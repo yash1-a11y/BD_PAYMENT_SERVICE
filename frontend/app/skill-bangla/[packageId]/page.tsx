@@ -297,11 +297,19 @@ export default async function PackagePdpPage({
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 )}
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <span className="w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center text-xl">
-                    ▶
-                  </span>
-                </span>
+                {pkg.demo_url && (
+                  <a
+                    href={pkg.demo_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute inset-0 flex items-center justify-center"
+                    aria-label="Play demo video"
+                  >
+                    <span className="w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center text-xl">
+                      ▶
+                    </span>
+                  </a>
+                )}
               </div>
               <div className="flex gap-2 mb-3">
                 {pkg.language && (

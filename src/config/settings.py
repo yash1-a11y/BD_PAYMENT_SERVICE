@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     package_system_src: str = "aweb"
     allowed_origins: list[str] = ["http://localhost:3001"]
 
+    transfi_base_url: str
+    transfi_public_key: str
+    transfi_secret_key: str
+    transfi_payment_link_id: str
+    transfi_success_url: str
+    transfi_failure_url: str
+
 
 @lru_cache
 def get_settings() -> Settings:

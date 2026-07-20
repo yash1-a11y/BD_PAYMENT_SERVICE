@@ -45,6 +45,7 @@ class BatchSchedule:
 
 @dataclass
 class Plan:
+    variant_id: str | None
     title: str
     validity: int | None
     validity_unit: str | None
@@ -82,6 +83,7 @@ class StorefrontPackage:
     package_id: str
     title: str
     thumbnail_url: str | None
+    demo_url: str | None
     language: str | None
     live_classes_count: int
     video_count: int
@@ -159,8 +161,17 @@ def fetch_storefront_package(package_id: str) -> StorefrontPackage:
     multi_validity = entity.get("multiValidity") or []
     plan = None
     if multi_validity:
-        mv = multi_validity[0]
+        # Select the variant flagged `primary` by the Package System — this
+        # is live, rotating data (which variant is primary can change
+        # between fetches), so it must never be assumed to sit at a fixed
+        # array position. Fall back to the first variant if none is
+        # flagged primary.
+        mv = next(
+            (v for v in multi_validity if v.get("primary")),
+            multi_validity[0],
+        )
         plan = Plan(
+            variant_id=str(mv["id"]) if mv.get("id") is not None else None,
             title=mv.get("validityTitle") or mv.get("title", ""),
             validity=mv.get("validity"),
             validity_unit=mv.get("validityUnit"),
@@ -216,6 +227,7 @@ def fetch_storefront_package(package_id: str) -> StorefrontPackage:
         package_id=package_id,
         title=entity.get("title", ""),
         thumbnail_url=entity.get("imgUrl"),
+        demo_url=entity.get("demoUrl") or None,
         language=primary_language,
         live_classes_count=int(entity.get("olcCount") or 0),
         video_count=video_count,

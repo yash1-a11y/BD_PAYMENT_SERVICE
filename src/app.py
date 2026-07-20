@@ -9,6 +9,7 @@ from src.db.base import get_db
 from src.modules.admin_auth.router import router as admin_auth_router
 from src.modules.admin_users.router import router as admin_users_router
 from src.modules.catalogue.router import router as catalogue_router
+from src.modules.checkout.router import router as checkout_router
 from src.modules.storefront.router import router as storefront_router
 
 app = FastAPI(title="BD Payment Service")
@@ -25,6 +26,7 @@ app.include_router(admin_auth_router)
 app.include_router(admin_users_router)
 app.include_router(catalogue_router)
 app.include_router(storefront_router)
+app.include_router(checkout_router)
 
 
 @app.get("/health")

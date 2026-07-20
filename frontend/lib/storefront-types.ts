@@ -56,6 +56,7 @@ export interface PackagePdp {
   display_code: string;
   title: string;
   thumbnail_url: string | null;
+  demo_url: string | null;
   price_bdt: string;
   language: string | null;
   batch_type: string;
@@ -73,4 +74,22 @@ export interface PackagePdp {
   sections: Section[];
   faqs: Faq[];
   testimonials: Testimonial[];
+}
+
+export interface OrderCreatePayload {
+  package_id: string;
+  name: string;
+  email: string;
+  /** Local Bangladesh number only, without the +880 prefix, e.g. "1712345678". */
+  phone: string;
+}
+
+export interface Order {
+  order_id: string;
+  package_id: string;
+  title: string;
+  price_bdt: string;
+  status: string;
+  payment_url: string;
+  created_at: string;
 }

@@ -73,6 +73,7 @@ class PackagePdpOut(BaseModel):
     display_code: str
     title: str
     thumbnail_url: str | None
+    demo_url: str | None
     price_bdt: Decimal
     language: str | None
     batch_type: str
