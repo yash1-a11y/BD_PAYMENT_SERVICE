@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     transfi_payment_link_id: str
     transfi_success_url: str
     transfi_failure_url: str
+    transfi_webhook_secret: str
 
 
 @lru_cache
