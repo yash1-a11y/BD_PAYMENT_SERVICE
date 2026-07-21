@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from src.config.settings import get_settings
 from src.db.base import get_db
 from src.modules.admin_auth.router import router as admin_auth_router
+from src.modules.admin_dashboard.router import router as admin_dashboard_router
 from src.modules.admin_users.router import router as admin_users_router
 from src.modules.catalogue.router import router as catalogue_router
 from src.modules.checkout.router import router as checkout_router
@@ -28,6 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(admin_auth_router)
+app.include_router(admin_dashboard_router)
 app.include_router(admin_users_router)
 app.include_router(catalogue_router)
 app.include_router(storefront_router)

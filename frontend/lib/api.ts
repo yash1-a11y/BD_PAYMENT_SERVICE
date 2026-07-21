@@ -2,6 +2,7 @@ import {
   AdminAccount,
   ApiError,
   CatalogueEntry,
+  DashboardStats,
   FieldError,
   PackageLookupResult,
 } from "@/lib/types";
@@ -162,4 +163,8 @@ export function resetAdminPassword(token: string, id: string, newPassword: strin
 
 export function deleteAdmin(token: string, id: string) {
   return request<void>(`/bd-admin/api/admins/${id}`, { method: "DELETE", token });
+}
+
+export function getDashboardStats(token: string) {
+  return request<DashboardStats>("/bd-admin/api/dashboard/stats", { token });
 }

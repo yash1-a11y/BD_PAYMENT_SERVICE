@@ -36,6 +36,20 @@ export interface AdminAccount {
   last_login_at: string | null;
 }
 
+export interface DashboardStats {
+  total_orders: number;
+  paid: number;
+  pending: number;
+  failed: number;
+  cancelled: number;
+  guest_checkout_success_count: number;
+  guest_checkout_failure_count: number;
+  webhook_success_count: number;
+  webhook_failure_count: number;
+  orders_today: number;
+  revenue_today_bdt: string;
+}
+
 export class ApiError extends Error {
   status: number;
   fieldErrors: FieldError[];

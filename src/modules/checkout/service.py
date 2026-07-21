@@ -98,7 +98,11 @@ def get_order_status(db: Session, order_id: uuid.UUID) -> OrderStatusOut:
 
     return OrderStatusOut(
         order_id=order.id,
-        status=order.status.value,
+        reference_id=order.id,
+        payment_status=order.status.value,
+        package_allocation_status=order.fulfilment_status.value,
         package_title=title,
         amount_bdt=order.price_bdt,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
     )

@@ -32,6 +32,11 @@ export function Topbar() {
                 Admin Users
               </Link>
             )}
+            {role === "SUPER_ADMIN" && (
+              <Link href="/bd-admin/dashboard" className={navLinkClass("/bd-admin/dashboard")}>
+                Dashboard
+              </Link>
+            )}
           </nav>
         </div>
         <div className="flex items-center gap-4 text-sm">

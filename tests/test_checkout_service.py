@@ -167,7 +167,9 @@ def test_get_order_status_returns_status(db_session, monkeypatch):
 
     status_out = service.get_order_status(db_session, order.order_id)
     assert status_out.order_id == order.order_id
-    assert status_out.status == "PENDING"
+    assert status_out.reference_id == order.order_id
+    assert status_out.payment_status == "PENDING"
+    assert status_out.package_allocation_status == "PENDING"
     assert status_out.amount_bdt == Decimal("1499")
 
 

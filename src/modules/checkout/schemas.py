@@ -43,6 +43,13 @@ class OrderOut(BaseModel):
 
 class OrderStatusOut(BaseModel):
     order_id: uuid.UUID
-    status: str
+    # Order.id IS the Transfi reference (Phase 4 deliberately avoided a
+    # second generated value) — exposed under both names since Phase 5's
+    # spec calls for `referenceId` in this response.
+    reference_id: uuid.UUID
+    payment_status: str
+    package_allocation_status: str
     package_title: str
     amount_bdt: Decimal
+    created_at: datetime
+    updated_at: datetime

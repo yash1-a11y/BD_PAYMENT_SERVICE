@@ -143,6 +143,8 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
             error_message=str(exc),
         )
 
+    logger.info("Webhook received (entity_id=%s)", _safe_str(payload.get("entityId")))
+
     entity_type = _safe_str(payload.get("entityType"))
     entity_id = _safe_str(payload.get("entityId"))
     webhook_status = _safe_str(payload.get("status"))
@@ -211,6 +213,11 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
     order.status = mapped_status
     db.commit()
 
+    if mapped_status == OrderStatus.PAID:
+        logger.info("Payment success for order %s", order.id)
+    elif mapped_status == OrderStatus.FAILED:
+        logger.info("Payment failure for order %s", order.id)
+
     error_message = None
     if mapped_status == OrderStatus.PAID:
         try:
@@ -218,9 +225,10 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
         except Exception as exc:  # noqa: BLE001 — any fulfilment failure must be caught here
             order.fulfilment_status = FulfilmentStatus.FAILED
             error_message = str(exc)
-            logger.exception("Fulfilment failed for order %s", order.id)
+            logger.exception("Guest checkout failed for order %s", order.id)
         else:
             order.fulfilment_status = FulfilmentStatus.COMPLETED
+            logger.info("Guest checkout success for order %s", order.id)
         db.commit()
 
     return _save_log(
