@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,6 +13,9 @@ from src.modules.admin_users.router import router as admin_users_router
 from src.modules.catalogue.router import router as catalogue_router
 from src.modules.checkout.router import router as checkout_router
 from src.modules.storefront.router import router as storefront_router
+from src.modules.webhooks.router import router as webhooks_router
+
+logging.basicConfig(level=get_settings().log_level)
 
 app = FastAPI(title="BD Payment Service")
 
@@ -27,6 +32,7 @@ app.include_router(admin_users_router)
 app.include_router(catalogue_router)
 app.include_router(storefront_router)
 app.include_router(checkout_router)
+app.include_router(webhooks_router)
 
 
 @app.get("/health")

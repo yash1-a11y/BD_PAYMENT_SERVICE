@@ -1,0 +1,36 @@
+# Local development convenience only — runs the backend + frontend
+# production images together. Deliberately has NO Postgres service: this
+# project's database is externally managed in every real environment, and
+# the app only ever needs DATABASE_URL. Point it at an already-running
+# local Postgres (e.g. `docker compose -f docker/docker-compose.yml up -d`,
+# left untouched by this file) or any other reachable dev database.
+#
+# All credentials come from the existing local .env file via `env_file` —
+# never an inline value here.
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      RUN_MIGRATIONS_ON_STARTUP: "false"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the JS bundle at build time (both server- and
+        # client-side fetches in this app read this same value) — see
+        # README_DEPLOYMENT.md for the real limitation this creates for
+        # server-rendered pages when running frontend/backend in separate
+        # containers on Docker Desktop.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend

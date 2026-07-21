@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     transfi_failure_url: str
     transfi_webhook_secret: str
 
+    app_env: str = "production"
+    log_level: str = "INFO"
+
 
 @lru_cache
 def get_settings() -> Settings:

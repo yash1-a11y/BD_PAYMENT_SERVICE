@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bd-payment-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: bd-payment-frontend
+  ports:
+    - port: 3000
+      targetPort: 3000

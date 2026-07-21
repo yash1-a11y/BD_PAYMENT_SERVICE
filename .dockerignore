@@ -1,0 +1,23 @@
+# Backend build context — keep this small and free of anything secret.
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+tests
+
+frontend/
+
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+dev.db
+
+docs/
+structure/
+*.md
+!README.md
+
+.claude
