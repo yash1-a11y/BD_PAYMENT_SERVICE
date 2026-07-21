@@ -33,3 +33,13 @@ data:
   PACKAGE_SYSTEM_BASE_URL: "https://search.adda247.com/v13/packages/info"
   PACKAGE_SYSTEM_SRC: "aweb"
   JWT_EXPIRE_MINUTES: "1440"
+  # Guest Checkout — prepared, not yet called anywhere in the running
+  # app (see docs/guest_checkout_integration.md). GUEST_CHECKOUT_BASE_URL
+  # is the ONE value the backend team said changes between staging and
+  # production; GUEST_CHECKOUT_ENDPOINT/CP_ORIGIN are separate settings
+  # so they stay independently configurable too. Credentials
+  # (GUEST_CHECKOUT_JWT_TOKEN / GUEST_CHECKOUT_BASIC_AUTH) belong in
+  # secret.example.yaml instead, never here.
+  GUEST_CHECKOUT_BASE_URL: ""
+  GUEST_CHECKOUT_ENDPOINT: ""
+  GUEST_CHECKOUT_CP_ORIGIN: ""

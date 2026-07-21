@@ -71,10 +71,19 @@ def _validate_price(price_bdt: Decimal) -> None:
 
 
 def _next_display_code(db: Session) -> str:
-    last = db.scalar(select(BDLandingPage).order_by(BDLandingPage.display_code.desc()))
-    if last is None:
+    # Computed numerically, not via a string ORDER BY — "LP-0099".desc()
+    # is a lexicographic string comparison, which is only correct while
+    # every code has the same digit width. Once a 5th digit is needed
+    # ("LP-10000" after "LP-9999"), "LP-9999" > "LP-10000" as strings
+    # (since '9' > '1' at that position), so the old code would compute
+    # "LP-10000" again and fail on the unique constraint. Fetching just
+    # this one column and taking max() in Python is correct regardless of
+    # digit width, and this table is small (a course catalog), so there's
+    # no need for a more complex SQL expression.
+    codes = db.scalars(select(BDLandingPage.display_code)).all()
+    if not codes:
         return "LP-0001"
-    last_number = int(last.display_code.split("-")[1])
+    last_number = max(int(code.split("-")[1]) for code in codes)
     return f"LP-{last_number + 1:04d}"
 
 

@@ -9,6 +9,7 @@ from src.modules.catalogue.exceptions import (
     InvalidPriceError,
     PackageNotEligibleError,
 )
+from src.modules.catalogue.models import BDLandingPage
 
 
 def _fake_package(package_id="3937", published=True):
@@ -65,6 +66,39 @@ def test_update_cannot_change_package_id(db_session, monkeypatch):
     entry = service.create_catalogue_entry(db_session, "3937", Decimal("1499"), True)
     updated = service.update_catalogue_entry(db_session, entry.id, Decimal("1999"), False)
     assert updated.package_id == "3937"
+
+
+def test_next_display_code_handles_digit_width_boundary(db_session, monkeypatch):
+    # "LP-9999".desc() as a STRING sorts AFTER "LP-10000" (since '9' > '1'
+    # at that character position) — with only one row this comparison
+    # never actually triggers, so both rows below must exist for the old
+    # string-ordered implementation to get it wrong: it would pick
+    # "LP-9999" as "last" and compute "LP-10000" again, colliding with the
+    # row that already has that code.
+    db_session.add_all(
+        [
+            BDLandingPage(
+                display_code="LP-9999",
+                package_id="boundary-test-1",
+                price_bdt=Decimal("100"),
+                published=True,
+                display_order=1,
+            ),
+            BDLandingPage(
+                display_code="LP-10000",
+                package_id="boundary-test-2",
+                price_bdt=Decimal("100"),
+                published=True,
+                display_order=2,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(service, "fetch_package", lambda package_id: _fake_package(package_id))
+    entry = service.create_catalogue_entry(db_session, "next-after-boundary", Decimal("100"), True)
+
+    assert entry.display_code == "LP-10001"
 
 
 def test_reorder_persists_display_order(db_session, monkeypatch):

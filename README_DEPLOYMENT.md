@@ -86,6 +86,11 @@ docker compose -f docker/docker-compose.yml up -d
 | `ALLOWED_ORIGINS` | No | Your domain(s), JSON array | none — required |
 | `APP_ENV` | No | — | `production` |
 | `LOG_LEVEL` | No | — | `INFO` |
+| `GUEST_CHECKOUT_BASE_URL` | No | Backend team — **the only value expected to change between staging and production** | `""` — not yet called anywhere, see `docs/guest_checkout_integration.md` |
+| `GUEST_CHECKOUT_ENDPOINT` | No | Backend team | `""` |
+| `GUEST_CHECKOUT_CP_ORIGIN` | No | Backend team | `""` |
+| `GUEST_CHECKOUT_JWT_TOKEN` | Yes | Backend team, once Guest Checkout is enabled | `""` |
+| `GUEST_CHECKOUT_BASIC_AUTH` | Yes | Backend team, once Guest Checkout is enabled | `""` |
 | `NEXT_PUBLIC_API_BASE_URL` | No | DevOps — **build-time only**, see §1 | none — required at build |
 
 The app (`src/config/settings.py`) refuses to start if any required
@@ -125,7 +130,9 @@ kubectl create secret generic bd-payment-secrets \
   --from-literal=JWT_SECRET='<long random value>' \
   --from-literal=TRANSFI_PUBLIC_KEY='<from Transfi dashboard>' \
   --from-literal=TRANSFI_SECRET_KEY='<from Transfi dashboard>' \
-  --from-literal=TRANSFI_WEBHOOK_SECRET='<from Transfi dashboard>'
+  --from-literal=TRANSFI_WEBHOOK_SECRET='<from Transfi dashboard>' \
+  --from-literal=GUEST_CHECKOUT_JWT_TOKEN='<from the backend team, once Guest Checkout is enabled>' \
+  --from-literal=GUEST_CHECKOUT_BASIC_AUTH='<from the backend team, once Guest Checkout is enabled>'
 
 # 3. Deployments + Services
 kubectl apply -f k8s/backend-deployment.yaml

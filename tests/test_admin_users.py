@@ -39,6 +39,25 @@ def test_create_admin_rejects_duplicate_email(client, auth_headers, seeded_admin
     assert response.status_code == 409
 
 
+def test_create_admin_rejects_duplicate_email_different_case(client, auth_headers, seeded_admin):
+    response = client.post(
+        "/bd-admin/api/admins",
+        headers=auth_headers,
+        json={"email": "Admin@Adda247.COM", "password": "pass1234"},
+    )
+    assert response.status_code == 409
+
+
+def test_create_admin_normalizes_email_to_lowercase(client, auth_headers):
+    response = client.post(
+        "/bd-admin/api/admins",
+        headers=auth_headers,
+        json={"email": "New-Admin@Adda247.com", "password": "pass1234"},
+    )
+    assert response.status_code == 201
+    assert response.json()["email"] == "new-admin@adda247.com"
+
+
 def test_update_admin_logs_audit(client, auth_headers, seeded_regular_admin, db_session):
     response = client.put(
         f"/bd-admin/api/admins/{seeded_regular_admin.id}",

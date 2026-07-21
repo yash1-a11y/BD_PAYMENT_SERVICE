@@ -1,14 +1,18 @@
 import hashlib
 import hmac
 import json
+import os
+import tempfile
 import threading
 import uuid
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.config.settings import get_settings
+from src.db.base import Base
 from src.modules.catalogue.models import BDLandingPage
 from src.modules.checkout.models import FulfilmentStatus, Order, OrderStatus
 from src.modules.webhooks import service
@@ -191,48 +195,70 @@ def test_fulfilment_failure_does_not_roll_back_payment_status(db_session, monkey
     assert log.processing_result == "processed"
 
 
-def test_concurrent_duplicate_deliveries_process_exactly_once(db_session, monkeypatch):
+def test_concurrent_duplicate_deliveries_process_exactly_once(monkeypatch):
     """Two genuinely concurrent deliveries for the same order (real threads,
-    separate sessions on the same underlying connection pool) must not both
-    reach fulfilment — proves the atomic compare-and-swap in service.py
-    actually prevents the race, not just the sequential duplicate case
-    already covered by test_duplicate_webhook_for_paid_order_is_idempotent."""
-    call_count = []
-    lock = threading.Lock()
+    each with its own real database connection) must not both reach
+    fulfilment — proves the atomic compare-and-swap in service.py actually
+    prevents the race, not just the sequential duplicate case already
+    covered by test_duplicate_webhook_for_paid_order_is_idempotent.
 
-    def _tracked_allocate(order):
-        with lock:
-            call_count.append(order.id)
+    Deliberately does NOT reuse the shared db_session fixture: that engine
+    uses SQLite's StaticPool, which gives every session the SAME single
+    physical connection object — fine for sequential tests, but not safe
+    for two threads genuinely operating on it at once (this caused a real,
+    intermittent `Could not refresh instance` flake here before). A
+    temp-file-backed SQLite database with a normal connection pool gives
+    each thread its own real connection while still sharing the same
+    underlying data, which is what actually needs to be exercised.
+    """
+    fd, db_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        engine = create_engine(f"sqlite:///{db_path}")
+        Base.metadata.create_all(engine)
+        session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
-    monkeypatch.setattr("src.modules.webhooks.service.allocate_package", _tracked_allocate)
+        setup_session = session_factory()
+        order = _seed_order(setup_session)
+        order_id = order.id
+        setup_session.close()
 
-    order = _seed_order(db_session)
-    body = _payload(order.id, "SUCCESS")
-    headers = _headers(body)
+        call_count = []
+        lock = threading.Lock()
 
-    session_factory = sessionmaker(bind=db_session.get_bind())
-    barrier = threading.Barrier(2)
-    results = []
-    results_lock = threading.Lock()
+        def _tracked_allocate(order):
+            with lock:
+                call_count.append(order.id)
 
-    def _deliver():
-        barrier.wait()
-        thread_session = session_factory()
-        try:
-            log = service.process_transfi_webhook(thread_session, body, headers)
-            with results_lock:
-                results.append(log.processing_result)
-        finally:
-            thread_session.close()
+        monkeypatch.setattr("src.modules.webhooks.service.allocate_package", _tracked_allocate)
 
-    threads = [threading.Thread(target=_deliver) for _ in range(2)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+        body = _payload(order_id, "SUCCESS")
+        headers = _headers(body)
 
-    assert sorted(results) == ["already_paid", "processed"]
-    assert call_count == [order.id]
+        barrier = threading.Barrier(2)
+        results = []
+        results_lock = threading.Lock()
+
+        def _deliver():
+            barrier.wait()
+            thread_session = session_factory()
+            try:
+                log = service.process_transfi_webhook(thread_session, body, headers)
+                with results_lock:
+                    results.append(log.processing_result)
+            finally:
+                thread_session.close()
+
+        threads = [threading.Thread(target=_deliver) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert sorted(results) == ["already_paid", "processed"]
+        assert call_count == [order_id]
+    finally:
+        os.remove(db_path)
 
 
 def test_order_resolution_falls_back_to_top_level_entity_id(db_session):

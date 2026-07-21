@@ -12,6 +12,15 @@ def test_login_success(client, seeded_admin):
     assert body["role"] == "SUPER_ADMIN"
 
 
+def test_login_is_case_insensitive_on_email(client, seeded_admin):
+    response = client.post(
+        "/bd-admin/api/auth/login",
+        json={"email": "Admin@Adda247.COM", "password": "secret123"},
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+
+
 def test_login_wrong_password(client, seeded_admin):
     response = client.post(
         "/bd-admin/api/auth/login",
