@@ -1,0 +1,123 @@
+# Requires the AWS Load Balancer Controller installed in the cluster
+# (https://kubernetes-sigs.github.io/aws-load-balancer-controller/) —
+# this provisions a real Application Load Balancer from these two
+# Ingress objects.
+#
+# Two Ingress objects, not one, sharing a single ALB via
+# `alb.ingress.kubernetes.io/group.name` — because the backend and
+# frontend expose health checks at DIFFERENT paths (`/health` per
+# src/app.py, `/api/health` per frontend/app/api/health/route.ts), and a
+# single Ingress's `healthcheck-path` annotation applies to every target
+# group it references. Splitting by service lets each one carry its own
+# correct target-group health check while still producing one ALB, one
+# domain, one certificate — this is the AWS Load Balancer Controller's
+# documented pattern for exactly this situation, not extra complexity
+# for its own sake.
+#
+# Load-balancer/listener-level annotations (scheme, listen-ports,
+# ssl-redirect, certificate-arn) are kept identical on both Ingress
+# objects deliberately — they describe the one shared ALB, not either
+# individual service, and the controller expects IngressGroup members to
+# agree on them.
+#
+# Path routing matches the real router prefixes in this repo exactly
+# (checked directly against every src/modules/*/router.py, not guessed):
+#   /health           -> backend  (src/app.py's own health check route)
+#   /api              -> backend  (checkout: /api/bd/..., storefront:
+#                        /api/bd/packages, webhooks: /api/bd/webhooks)
+#   /bd-admin/api      -> backend  (admin_auth, admin_users,
+#                        admin_dashboard, catalogue — all under
+#                        /bd-admin/api/...)
+#   /bd-admin         -> frontend (the admin panel's own pages, e.g.
+#                        /bd-admin/login, /bd-admin/dashboard — these
+#                        share the /bd-admin prefix with the backend API
+#                        above, but Kubernetes Ingress path matching
+#                        always resolves the MORE SPECIFIC prefix first
+#                        — /bd-admin/api wins over /bd-admin for any
+#                        request under /bd-admin/api/... — so listing
+#                        both is safe and correct regardless of order)
+#   /                 -> frontend (storefront root, /skill-bangla/*,
+#                        everything else)
+#
+# TLS is terminated at the ALB using an ACM certificate referenced by
+# the `certificate-arn` annotation below — NOT a Kubernetes TLS Secret
+# (that `spec.tls` + cert-manager pattern is for nginx-ingress, not how
+# the AWS Load Balancer Controller handles certificates). Do not add a
+# `spec.tls` block here; it has no effect on an ALB Ingress.
+#
+# Both `host` and `certificate-arn` below are placeholders, following
+# this repo's existing convention for every other per-environment value
+# (see k8s/backend-configmap.yaml) — fill in the real domain and the
+# real ACM certificate ARN for that domain before applying.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bd-payment-backend-ingress
+  annotations:
+    alb.ingress.kubernetes.io/group.name: bd-payment
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: ""
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+spec:
+  ingressClassName: alb
+  rules:
+    - host: your-domain.example
+      http:
+        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: bd-payment-backend
+                port:
+                  number: 8000
+          - path: /bd-admin/api
+            pathType: Prefix
+            backend:
+              service:
+                name: bd-payment-backend
+                port:
+                  number: 8000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: bd-payment-backend
+                port:
+                  number: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bd-payment-frontend-ingress
+  annotations:
+    alb.ingress.kubernetes.io/group.name: bd-payment
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: ""
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+spec:
+  ingressClassName: alb
+  rules:
+    - host: your-domain.example
+      http:
+        paths:
+          - path: /bd-admin
+            pathType: Prefix
+            backend:
+              service:
+                name: bd-payment-frontend
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bd-payment-frontend
+                port:
+                  number: 3000

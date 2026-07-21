@@ -132,6 +132,13 @@ kubectl apply -f k8s/backend-deployment.yaml
 kubectl apply -f k8s/backend-service.yaml
 kubectl apply -f k8s/frontend-deployment.yaml
 kubectl apply -f k8s/frontend-service.yaml
+
+# 4. Ingress (public entry point) — requires the AWS Load Balancer
+#    Controller already installed in the cluster. Fill in the real
+#    domain (both `host:` fields) and the real ACM certificate ARN
+#    (both `certificate-arn` annotations) in k8s/ingress.yaml first —
+#    see k8s/ingress.yaml's own comments for exactly which values.
+kubectl apply -f k8s/ingress.yaml
 ```
 
 Both Deployments run 2 replicas, `RollingUpdate` with `maxUnavailable: 0`
@@ -139,6 +146,16 @@ Both Deployments run 2 replicas, `RollingUpdate` with `maxUnavailable: 0`
 readiness + liveness probes (`/health` for the backend — reuses the
 existing endpoint that already checks real DB connectivity;
 `/api/health` for the frontend, added specifically for this).
+
+Both backend/frontend Services are `type: ClusterIP` — nothing is
+reachable from outside the cluster without the Ingress above. `k8s/ingress.yaml`
+creates two `Ingress` objects (one per service, since each needs a
+different target-group health-check path) that share a single
+Application Load Balancer via `alb.ingress.kubernetes.io/group.name`.
+Routing: `/health`, `/api/*`, and `/bd-admin/api/*` go to the backend;
+everything else (`/`, `/bd-admin/*` pages, `/skill-bangla/*`) goes to
+the frontend — this matches the real router prefixes in
+`src/modules/*/router.py` exactly, not an assumed convention.
 
 ### Running migrations
 
