@@ -1,0 +1,28 @@
+# NOT referenced by frontend-deployment.yaml's envFrom — deliberately.
+#
+# Next.js inlines every NEXT_PUBLIC_* variable into the JS bundle at
+# DOCKER IMAGE BUILD TIME (`docker build --build-arg
+# NEXT_PUBLIC_API_BASE_URL=...`, see frontend/Dockerfile and
+# README_DEPLOYMENT.md §1) — both client- and server-rendered code paths
+# read the value baked in at build time, never a container's runtime
+# environment. Wiring this ConfigMap into the Deployment's envFrom would
+# look like a live configuration knob but would silently have zero
+# effect on an already-built image. This file exists only for structural
+# consistency with the backend ConfigMap and to document the one public
+# variable this frontend actually reads.
+#
+# To change NEXT_PUBLIC_API_BASE_URL for a real deployment: rebuild and
+# push a new frontend image with the new --build-arg value, then roll
+# out that new image tag. Editing this ConfigMap and restarting pods
+# does nothing.
+#
+# Only the one variable actually read anywhere in frontend/ is listed —
+# NEXT_PUBLIC_FRONTEND_URL is deliberately omitted, matching
+# backend-configmap.yaml's own "only include values actually used"
+# rule: nothing in this codebase reads a FRONTEND_URL of any kind.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bd-payment-frontend-config
+data:
+  NEXT_PUBLIC_API_BASE_URL: ""

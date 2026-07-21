@@ -1,0 +1,35 @@
+# Non-sensitive configuration only. No credential, key, or token belongs
+# in this file — those go through secret.example.yaml's Secret instead.
+#
+# Every key below maps 1:1 to a field in src/config/settings.py::Settings
+# (cross-checked mechanically — nothing here is unused, nothing Settings
+# needs is missing). No entries unrelated to this FastAPI payment service
+# (no GCP/Firebase config, no third-party tokens) are present.
+#
+# NOTE: this project has no FRONTEND_URL setting — nothing in src/ or
+# frontend/ reads it — so it is deliberately not included here, even
+# though it's common in some other services' ConfigMaps.
+#
+# Blank values below are per-environment and MUST be filled in with real
+# values before applying this file — see README_DEPLOYMENT.md. Leaving
+# ALLOWED_ORIGINS blank makes the app refuse to start (fails fast, by
+# design — a production deployment should never silently fall back to
+# the localhost dev origin). The other blank string fields will NOT
+# fail startup if left blank (an empty string is still a valid string to
+# Pydantic) — they will start the app but break checkout/webhooks at
+# runtime, so fill them in before the first real deploy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bd-payment-backend-config
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  TRANSFI_BASE_URL: "" # fixed value for every environment: https://checkout-server.transfi.com
+  TRANSFI_PAYMENT_LINK_ID: ""
+  TRANSFI_SUCCESS_URL: ""
+  TRANSFI_FAILURE_URL: ""
+  ALLOWED_ORIGINS: ""
+  PACKAGE_SYSTEM_BASE_URL: "https://search.adda247.com/v13/packages/info"
+  PACKAGE_SYSTEM_SRC: "aweb"
+  JWT_EXPIRE_MINUTES: "1440"

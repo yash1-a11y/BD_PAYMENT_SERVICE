@@ -34,7 +34,7 @@ spec:
               value: "false"
           envFrom:
             - configMapRef:
-                name: bd-payment-config
+                name: bd-payment-backend-config
             - secretRef:
                 name: bd-payment-secrets
           resources:

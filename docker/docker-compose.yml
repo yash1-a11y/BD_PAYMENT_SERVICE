@@ -1,3 +1,14 @@
+# LOCAL DEVELOPMENT CONVENIENCE ONLY — this file is never used in
+# production and is not part of the real deployment path.
+#
+# Production always uses an externally managed PostgreSQL instance,
+# reached only via the DATABASE_URL secret (see k8s/secret.example.yaml
+# and README_DEPLOYMENT.md). No Kubernetes manifest, the root Dockerfile,
+# or the root docker-compose.yml references this file or this container
+# in any way — it exists purely so a developer without their own local
+# Postgres can start one for `uv run python main.py` / the test suite.
+# Start it explicitly and separately if you want it:
+#   docker compose -f docker/docker-compose.yml up -d
 services:
   postgres:
     image: postgres:16

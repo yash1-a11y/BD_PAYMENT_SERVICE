@@ -3,6 +3,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from src.config.settings import get_settings
@@ -177,20 +178,6 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
             status=webhook_status,
         )
 
-    # Idempotency: a repeat delivery for an already-paid order must never
-    # re-allocate the package or re-run any status transition.
-    if order.status == OrderStatus.PAID:
-        return _save_log(
-            db,
-            headers=lower_headers,
-            raw_body=raw_body,
-            signature_valid=True,
-            processing_result="already_paid",
-            entity_type=entity_type,
-            entity_id=entity_id,
-            status=webhook_status,
-        )
-
     mapped_status = (
         _STATUS_MAP.get(webhook_status.upper()) if isinstance(webhook_status, str) else None
     )
@@ -207,11 +194,39 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
             status=webhook_status,
         )
 
-    # Payment status is committed on its own, before fulfilment is ever
-    # attempted — these are two separate concerns, and a fulfilment
-    # failure below must never roll back or change this.
-    order.status = mapped_status
+    # Idempotent, race-safe status transition: a single conditional UPDATE
+    # (compare-and-swap on `status != PAID`) replaces the previous
+    # read-then-write check, which had a window between reading
+    # order.status and committing the change — two concurrent or retried
+    # deliveries for the same order could both read "not yet PAID" and
+    # both proceed, double-triggering fulfilment below. The UPDATE's WHERE
+    # clause is evaluated and applied atomically by the database itself,
+    # so only the delivery that actually flips the row (rowcount == 1) can
+    # continue past this point; a delivery that loses the race — because
+    # another one, concurrently or on an earlier retry, already committed
+    # PAID — sees rowcount == 0 and is treated exactly like any other
+    # repeat delivery for an already-paid order always was: logged and
+    # returned without ever reaching fulfilment. This holds across the 2
+    # backend replicas in k8s too, since it's enforced by the database,
+    # not by in-process state.
+    result = db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.status != OrderStatus.PAID)
+        .values(status=mapped_status)
+    )
     db.commit()
+
+    if result.rowcount == 0:
+        return _save_log(
+            db,
+            headers=lower_headers,
+            raw_body=raw_body,
+            signature_valid=True,
+            processing_result="already_paid",
+            entity_type=entity_type,
+            entity_id=entity_id,
+            status=webhook_status,
+        )
 
     if mapped_status == OrderStatus.PAID:
         logger.info("Payment success for order %s", order.id)

@@ -101,8 +101,21 @@ Transfi keys, and the webhook secret) must come from a Kubernetes
 Files live in `k8s/`. Apply order:
 
 ```bash
-# 1. Non-sensitive config
-kubectl apply -f k8s/configmap.yaml
+# 1. Non-sensitive config — fill in the blank per-environment values in
+#    k8s/backend-configmap.yaml first (TRANSFI_BASE_URL,
+#    TRANSFI_PAYMENT_LINK_ID, TRANSFI_SUCCESS_URL, TRANSFI_FAILURE_URL,
+#    ALLOWED_ORIGINS — see the table above for the real value each one
+#    needs). An unfilled ALLOWED_ORIGINS makes the app refuse to start,
+#    by design; the other blank fields start the app but break
+#    checkout/webhooks at runtime.
+kubectl apply -f k8s/backend-configmap.yaml
+
+# k8s/frontend-configmap.yaml is NOT applied here and is not referenced
+# by frontend-deployment.yaml — it exists only for documentation/
+# structural consistency. NEXT_PUBLIC_API_BASE_URL is inlined into the
+# frontend's JS bundle at Docker BUILD time (`--build-arg`, see §1) —
+# applying or editing this ConfigMap has zero effect on a running
+# frontend pod. To change it, rebuild and roll out a new frontend image.
 
 # 2. Real secrets — created directly, NOT by applying secret.example.yaml
 #    (that file is a template with empty placeholders, deliberately named
@@ -137,7 +150,7 @@ explicitly. To actually run migrations against a real environment:
 ```bash
 kubectl run bd-payment-migrate --rm -it --restart=Never \
   --image=bd-payment-backend:1.0.0 \
-  --env-from=configmap/bd-payment-config \
+  --env-from=configmap/bd-payment-backend-config \
   --env-from=secret/bd-payment-secrets \
   --command -- alembic upgrade head
 ```
