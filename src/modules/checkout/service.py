@@ -34,7 +34,14 @@ def initiate_payment(db: Session, payload: OrderCreate) -> OrderOut:
     variant_id = storefront.plan.variant_id if storefront.plan else None
     title = storefront.title or entry.package_id
 
+    # Generated explicitly (rather than left to the column's default) so
+    # `reference_id` can be set to the same value in the same statement —
+    # a mirror of `id`, never a second independently-generated identity.
+    order_id = uuid.uuid4()
+
     order = Order(
+        id=order_id,
+        reference_id=str(order_id),
         landing_page_id=entry.id,
         variant_id=variant_id,
         customer_name=payload.name,

@@ -8,9 +8,11 @@ from alembic import context
 from src.config.settings import get_settings
 from src.db.base import Base
 from src.modules.admin_auth import models as admin_auth_models  # noqa: F401
+from src.modules.audit import models as audit_models  # noqa: F401
 from src.modules.catalogue import models as catalogue_models  # noqa: F401
 from src.modules.fulfilment import models as fulfilment_models  # noqa: F401
 from src.modules.payments import models as payments_models  # noqa: F401
+from src.modules.webhooks import models as webhooks_models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

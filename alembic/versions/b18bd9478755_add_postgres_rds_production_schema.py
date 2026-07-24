@@ -137,6 +137,9 @@ def downgrade() -> None:
     op.drop_table("webhook_events")
     op.drop_table("payment_transactions")
 
+    op.drop_index("ix_orders_order_status", table_name="orders")
+    op.drop_index("ix_orders_payment_status", table_name="orders")
+
     with op.batch_alter_table("orders") as batch_op:
         batch_op.drop_constraint("uq_orders_reference_id", type_="unique")
         batch_op.drop_column("gateway_response")

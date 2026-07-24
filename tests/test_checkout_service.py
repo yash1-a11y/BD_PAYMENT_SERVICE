@@ -9,7 +9,7 @@ from src.integrations.transfi.service import PaymentInitiationResult
 from src.modules.catalogue.models import BDLandingPage
 from src.modules.checkout import service
 from src.modules.checkout.exceptions import OrderNotFoundError, PackageUnavailableError
-from src.modules.checkout.models import Order, OrderStatus
+from src.modules.checkout.models import Order, OrderLifecycleStatus, OrderStatus
 from src.modules.checkout.schemas import OrderCreate
 
 
@@ -164,6 +164,51 @@ def test_initiate_payment_marks_order_failed_on_transfi_error(db_session, monkey
 
     order_row = db_session.query(Order).one()
     assert order_row.status == OrderStatus.FAILED
+
+
+def test_initiate_payment_populates_production_schema_fields(db_session, monkeypatch):
+    monkeypatch.setattr(
+        service, "fetch_storefront_package", lambda package_id: _fake_storefront(package_id)
+    )
+    _patch_transfi(monkeypatch, payment_reference="inv_xyz789")
+    _seed_landing_page(db_session, package_id="3937", price=Decimal("1499"))
+
+    order_out = service.initiate_payment(db_session, _order_payload())
+
+    order_row = db_session.get(Order, order_out.order_id)
+    assert order_row.reference_id == str(order_out.order_id)
+    assert order_row.payment_provider == "transfi"
+    assert order_row.payment_reference == "inv_xyz789"
+    assert order_row.payment_status == "PENDING"
+    assert order_row.order_status == OrderLifecycleStatus.PENDING
+    assert order_row.currency == "BDT"
+    assert order_row.package_snapshot == {
+        "package_id": "3937",
+        "title": "Test Package",
+        "thumbnail": "https://example.com/thumb.jpg",
+        "selling_price_bdt": "1499.00",
+    }
+
+
+def test_initiate_payment_transfi_failure_sets_payment_status_and_order_status(
+    db_session, monkeypatch
+):
+    monkeypatch.setattr(
+        service, "fetch_storefront_package", lambda package_id: _fake_storefront(package_id)
+    )
+
+    def _raise(**kwargs):
+        raise TransfiRequestError("simulated Transfi outage")
+
+    monkeypatch.setattr(service, "transfi_initiate_payment", _raise)
+    _seed_landing_page(db_session)
+
+    with pytest.raises(TransfiRequestError):
+        service.initiate_payment(db_session, _order_payload())
+
+    order_row = db_session.query(Order).one()
+    assert order_row.payment_status == "FAILED"
+    assert order_row.order_status == OrderLifecycleStatus.PAYMENT_FAILED
 
 
 def test_get_order_status_returns_status(db_session, monkeypatch):

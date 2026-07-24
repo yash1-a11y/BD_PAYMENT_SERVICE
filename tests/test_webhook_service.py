@@ -11,12 +11,17 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from sqlalchemy import select
+
 from src.config.settings import get_settings
 from src.db.base import Base
 from src.modules.catalogue.models import BDLandingPage
-from src.modules.checkout.models import FulfilmentStatus, Order, OrderStatus
+from src.modules.checkout.models import FulfilmentStatus, Order, OrderLifecycleStatus, OrderStatus
+from src.modules.fulfilment.models import Fulfilment
+from src.modules.payments.models import PaymentTransaction
 from src.modules.webhooks import service
 from src.modules.webhooks.exceptions import InvalidWebhookSignatureError
+from src.modules.webhooks.models import WebhookEvent
 
 
 def _sign(body: bytes) -> str:
@@ -100,6 +105,91 @@ def test_successful_payment_updates_order_and_calls_fulfilment(db_session, monke
     assert order.fulfilment_status == FulfilmentStatus.COMPLETED
     assert called == [order.id]
     assert log.processing_result == "processed"
+
+
+def test_successful_payment_populates_production_schema_fields(db_session):
+    order = _seed_order(db_session)
+    body = _payload(order.id, "SUCCESS")
+
+    service.process_transfi_webhook(db_session, body, _headers(body))
+
+    db_session.refresh(order)
+    assert order.payment_status == "PAID"
+    assert order.order_status == OrderLifecycleStatus.COMPLETED
+    assert order.gateway_response["status"] == "SUCCESS"
+
+    transaction = db_session.scalar(
+        select(PaymentTransaction).where(PaymentTransaction.order_id == order.id)
+    )
+    assert transaction is not None
+    assert transaction.provider == "transfi"
+    assert transaction.status == "PAID"
+    assert transaction.amount == order.price_bdt
+    assert transaction.response_payload["status"] == "SUCCESS"
+
+    event = db_session.scalar(select(WebhookEvent).where(WebhookEvent.event_id == "txn_123"))
+    assert event is not None
+    assert event.processed is True
+    assert event.event_type == "order"
+
+    fulfilment = db_session.scalar(select(Fulfilment).where(Fulfilment.order_id == order.id))
+    assert fulfilment is not None
+    assert fulfilment.status == FulfilmentStatus.COMPLETED
+    assert fulfilment.fulfilled_at is not None
+
+
+def test_failed_payment_populates_payment_status_and_order_status(db_session):
+    order = _seed_order(db_session)
+    body = _payload(order.id, "FAILED")
+
+    service.process_transfi_webhook(db_session, body, _headers(body))
+
+    db_session.refresh(order)
+    assert order.payment_status == "FAILED"
+    assert order.order_status == OrderLifecycleStatus.PAYMENT_FAILED
+
+    transaction = db_session.scalar(
+        select(PaymentTransaction).where(PaymentTransaction.order_id == order.id)
+    )
+    assert transaction is not None
+    assert transaction.status == "FAILED"
+
+    # No fulfilment attempt for a failed payment.
+    fulfilment = db_session.scalar(select(Fulfilment).where(Fulfilment.order_id == order.id))
+    assert fulfilment is None
+
+
+def test_fulfilment_failure_records_failed_fulfilment_and_order_status(db_session, monkeypatch):
+    def _raise(db, order):
+        raise RuntimeError("simulated fulfilment outage")
+
+    monkeypatch.setattr("src.modules.webhooks.service.allocate_package", _raise)
+    order = _seed_order(db_session)
+    body = _payload(order.id, "SUCCESS")
+
+    service.process_transfi_webhook(db_session, body, _headers(body))
+
+    db_session.refresh(order)
+    assert order.order_status == OrderLifecycleStatus.FULFILLMENT_FAILED
+
+
+def test_duplicate_delivery_does_not_create_second_transaction_or_event(db_session, monkeypatch):
+    monkeypatch.setattr("src.modules.webhooks.service.allocate_package", lambda db, o: None)
+    order = _seed_order(db_session)
+    body = _payload(order.id, "SUCCESS")
+
+    service.process_transfi_webhook(db_session, body, _headers(body))
+    service.process_transfi_webhook(db_session, body, _headers(body))
+
+    transactions = db_session.scalars(
+        select(PaymentTransaction).where(PaymentTransaction.order_id == order.id)
+    ).all()
+    assert len(transactions) == 1
+
+    events = db_session.scalars(
+        select(WebhookEvent).where(WebhookEvent.event_id == "txn_123")
+    ).all()
+    assert len(events) == 1
 
 
 def test_failed_payment_updates_order_without_fulfilment(db_session, monkeypatch):
