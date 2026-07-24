@@ -53,7 +53,10 @@ def upgrade() -> None:
 
     # Backfill existing rows — going forward, webhooks/service.py and
     # checkout/service.py keep these live-synced (see docs/database_schema.md).
-    op.execute("UPDATE orders SET reference_id = id::text")
+    # CAST(... AS TEXT) — the ANSI-standard form, not Postgres's `::text`
+    # shorthand, so this runs identically against SQLite too (this
+    # project's local dev database) and not just Postgres.
+    op.execute("UPDATE orders SET reference_id = CAST(id AS TEXT)")
     op.execute("UPDATE orders SET payment_status = status")
     op.execute(
         """

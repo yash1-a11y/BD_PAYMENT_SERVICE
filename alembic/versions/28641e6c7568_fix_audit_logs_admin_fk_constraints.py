@@ -31,38 +31,57 @@ def upgrade() -> None:
     # historical audit rows survive — audit_logs is a historical record,
     # not something that should block or cascade-delete an admin lifecycle
     # action — they simply lose that specific actor identity.
-    op.drop_constraint("audit_logs_actor_admin_id_fkey", "audit_logs", type_="foreignkey")
-    op.create_foreign_key(
-        "audit_logs_actor_admin_id_fkey",
-        "audit_logs",
-        "admin_users",
-        ["actor_admin_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    #
+    # Postgres-only: the original FK (89899fa92660) was created via a bare
+    # `sa.ForeignKey("admin_users.id")`, with no explicit name — Postgres
+    # auto-assigns a deterministic name (`audit_logs_actor_admin_id_fkey`)
+    # that this migration can target directly, but SQLite's reflection
+    # doesn't expose a matching name for Alembic's batch mode to find
+    # (confirmed directly: batch mode raises `No such constraint` against
+    # this project's real dev.db). Since SQLite never enforces foreign
+    # keys in this project anyway (no PRAGMA foreign_keys=ON, anywhere),
+    # there's nothing meaningful to change on that dialect — the column
+    # shapes are identical either way, only the enforcement behavior
+    # differs, and only Postgres enforces it at all. Already applied and
+    # verified against the real dev Postgres container.
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
 
-    # target_admin_id never had a FK constraint at all — any UUID could be
-    # stored here, even one that doesn't correspond to a real admin. Added
-    # now to match its sibling actor_admin_id, with the same ON DELETE
-    # SET NULL behavior for the same reason.
-    op.create_foreign_key(
-        "audit_logs_target_admin_id_fkey",
-        "audit_logs",
-        "admin_users",
-        ["target_admin_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("audit_logs") as batch_op:
+        batch_op.drop_constraint("audit_logs_actor_admin_id_fkey", type_="foreignkey")
+        batch_op.create_foreign_key(
+            "audit_logs_actor_admin_id_fkey",
+            "admin_users",
+            ["actor_admin_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+        # target_admin_id never had a FK constraint at all — any UUID could
+        # be stored here, even one that doesn't correspond to a real admin.
+        # Added now to match its sibling actor_admin_id, with the same
+        # ON DELETE SET NULL behavior for the same reason.
+        batch_op.create_foreign_key(
+            "audit_logs_target_admin_id_fkey",
+            "admin_users",
+            ["target_admin_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_constraint("audit_logs_target_admin_id_fkey", "audit_logs", type_="foreignkey")
-    op.drop_constraint("audit_logs_actor_admin_id_fkey", "audit_logs", type_="foreignkey")
-    op.create_foreign_key(
-        "audit_logs_actor_admin_id_fkey",
-        "audit_logs",
-        "admin_users",
-        ["actor_admin_id"],
-        ["id"],
-    )
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+
+    with op.batch_alter_table("audit_logs") as batch_op:
+        batch_op.drop_constraint("audit_logs_target_admin_id_fkey", type_="foreignkey")
+        batch_op.drop_constraint("audit_logs_actor_admin_id_fkey", type_="foreignkey")
+        batch_op.create_foreign_key(
+            "audit_logs_actor_admin_id_fkey",
+            "admin_users",
+            ["actor_admin_id"],
+            ["id"],
+        )

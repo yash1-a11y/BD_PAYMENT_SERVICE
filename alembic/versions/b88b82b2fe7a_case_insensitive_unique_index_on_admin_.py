@@ -24,7 +24,15 @@ def upgrade() -> None:
     # existing rows are case-variant duplicates (e.g. "Admin@x.com" and
     # "admin@x.com"), normalizing them to the same lowercase value below
     # would otherwise violate it mid-migration.
-    op.drop_constraint("uq_admin_users_email", "admin_users", type_="unique")
+    #
+    # Batch mode — SQLite's Alembic dialect has no support for ALTER of
+    # constraints at all (only a copy-and-move strategy, which batch mode
+    # provides); on Postgres, batch mode compiles down to the exact same
+    # direct ALTER statement, so this is a no-op behavior change there
+    # (already applied and verified against the real dev Postgres
+    # container).
+    with op.batch_alter_table("admin_users") as batch_op:
+        batch_op.drop_constraint("uq_admin_users_email", type_="unique")
 
     # Normalize existing data. Application code (admin_users/service.py,
     # admin_auth/service.py) now also normalizes on every future write and
@@ -48,4 +56,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_index("admin_users_email_lower_idx", table_name="admin_users")
-    op.create_unique_constraint("uq_admin_users_email", "admin_users", ["email"])
+    with op.batch_alter_table("admin_users") as batch_op:
+        batch_op.create_unique_constraint("uq_admin_users_email", ["email"])
