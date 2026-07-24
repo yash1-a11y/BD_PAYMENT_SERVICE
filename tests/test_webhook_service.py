@@ -88,7 +88,7 @@ def test_invalid_signature_rejected(db_session):
 def test_successful_payment_updates_order_and_calls_fulfilment(db_session, monkeypatch):
     called = []
     monkeypatch.setattr(
-        "src.modules.webhooks.service.allocate_package", lambda o: called.append(o.id)
+        "src.modules.webhooks.service.allocate_package", lambda db, o: called.append(o.id)
     )
     order = _seed_order(db_session)
     body = _payload(order.id, "SUCCESS")
@@ -105,7 +105,7 @@ def test_successful_payment_updates_order_and_calls_fulfilment(db_session, monke
 def test_failed_payment_updates_order_without_fulfilment(db_session, monkeypatch):
     called = []
     monkeypatch.setattr(
-        "src.modules.webhooks.service.allocate_package", lambda o: called.append(o.id)
+        "src.modules.webhooks.service.allocate_package", lambda db, o: called.append(o.id)
     )
     order = _seed_order(db_session)
     body = _payload(order.id, "FAILED")
@@ -120,7 +120,7 @@ def test_failed_payment_updates_order_without_fulfilment(db_session, monkeypatch
 def test_duplicate_webhook_for_paid_order_is_idempotent(db_session, monkeypatch):
     called = []
     monkeypatch.setattr(
-        "src.modules.webhooks.service.allocate_package", lambda o: called.append(o.id)
+        "src.modules.webhooks.service.allocate_package", lambda db, o: called.append(o.id)
     )
     order = _seed_order(db_session, status=OrderStatus.PAID)
     body = _payload(order.id, "SUCCESS")
@@ -179,7 +179,7 @@ def test_malformed_payload_does_not_crash(db_session):
 
 
 def test_fulfilment_failure_does_not_roll_back_payment_status(db_session, monkeypatch):
-    def _raise(order):
+    def _raise(db, order):
         raise RuntimeError("simulated fulfilment outage")
 
     monkeypatch.setattr("src.modules.webhooks.service.allocate_package", _raise)
@@ -226,7 +226,7 @@ def test_concurrent_duplicate_deliveries_process_exactly_once(monkeypatch):
         call_count = []
         lock = threading.Lock()
 
-        def _tracked_allocate(order):
+        def _tracked_allocate(db, order):
             with lock:
                 call_count.append(order.id)
 

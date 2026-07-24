@@ -4,14 +4,16 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.config.settings import get_settings
-from src.modules.checkout.models import FulfilmentStatus, Order, OrderStatus
+from src.modules.checkout.models import FulfilmentStatus, Order, OrderLifecycleStatus, OrderStatus
 from src.modules.fulfilment.service import allocate_package
+from src.modules.payments.models import PaymentTransaction
 from src.modules.webhooks import security
 from src.modules.webhooks.exceptions import InvalidWebhookSignatureError
-from src.modules.webhooks.models import WebhookLog
+from src.modules.webhooks.models import WebhookEvent, WebhookLog
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,50 @@ def _save_log(
     return log
 
 
+def _save_webhook_event(
+    db: Session,
+    *,
+    event_type: str | None,
+    event_id: str | None,
+    payload: dict,
+    processed: bool,
+) -> WebhookEvent | None:
+    """A second, independent record alongside WebhookLog (docs/postgres_rds.md's
+    new production-schema table) — created for every delivery that made
+    it past signature verification and JSON parsing (an invalid signature
+    or malformed body was never a real "event" to record here; WebhookLog
+    alone already captures those for debugging). `processed=True` only
+    for a delivery that actually caused a state transition; every
+    intermediate rejection (unknown entity type, order not found,
+    unrecognized status, already-paid duplicate) is still recorded, just
+    with `processed=False`.
+
+    A genuinely concurrent or retried delivery for the same `event_id`
+    can lose a race against another one already inserting this exact
+    (provider, event_id) pair — the same class of race the compare-and-
+    swap fix earlier in this file protects `orders.status` against.
+    Rather than let that crash the request, this is treated the same way
+    an already-recorded event always should be: a harmless no-op, not an
+    error — WebhookLog above (per delivery, never unique) already
+    captured this specific HTTP request regardless."""
+    try:
+        event = WebhookEvent(
+            provider="transfi",
+            event_type=event_type,
+            event_id=event_id,
+            payload=payload,
+            processed=processed,
+            processed_at=datetime.now(UTC) if processed else None,
+        )
+        db.add(event)
+        db.commit()
+        db.refresh(event)
+        return event
+    except IntegrityError:
+        db.rollback()
+        return None
+
+
 def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> WebhookLog:
     settings = get_settings()
     lower_headers = {k.lower(): v for k, v in headers.items()}
@@ -153,6 +199,9 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
     if not isinstance(entity_type, str) or not any(
         hint in entity_type.lower() for hint in _ORDER_ENTITY_HINTS
     ):
+        _save_webhook_event(
+            db, event_type=entity_type, event_id=entity_id, payload=payload, processed=False
+        )
         return _save_log(
             db,
             headers=lower_headers,
@@ -167,6 +216,9 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
     order = _resolve_order(db, payload)
     if order is None:
         logger.warning("Transfi webhook: no matching order found (entity_id=%s)", entity_id)
+        _save_webhook_event(
+            db, event_type=entity_type, event_id=entity_id, payload=payload, processed=False
+        )
         return _save_log(
             db,
             headers=lower_headers,
@@ -183,6 +235,9 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
     )
     if mapped_status is None:
         logger.warning("Transfi webhook: unrecognized status %r for order %s", webhook_status, order.id)
+        _save_webhook_event(
+            db, event_type=entity_type, event_id=entity_id, payload=payload, processed=False
+        )
         return _save_log(
             db,
             headers=lower_headers,
@@ -217,6 +272,9 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
     db.commit()
 
     if result.rowcount == 0:
+        _save_webhook_event(
+            db, event_type=entity_type, event_id=entity_id, payload=payload, processed=False
+        )
         return _save_log(
             db,
             headers=lower_headers,
@@ -233,18 +291,59 @@ def process_transfi_webhook(db: Session, raw_body: bytes, headers: dict) -> Webh
     elif mapped_status == OrderStatus.FAILED:
         logger.info("Payment failure for order %s", order.id)
 
+    # Kept live-synced with `status`/the outcome below — `status` (and
+    # `fulfilment_status` further down) stay the authoritative fields for
+    # all existing code (checkout API responses, admin dashboard); these
+    # are the new production-schema (docs/postgres_rds.md) counterparts,
+    # denormalized for reporting/joins against payment_transactions.
+    order.payment_status = mapped_status.value
+    order.gateway_response = payload
+    order.order_status = {
+        OrderStatus.PAID: OrderLifecycleStatus.PROCESSING,
+        OrderStatus.FAILED: OrderLifecycleStatus.PAYMENT_FAILED,
+        OrderStatus.CANCELLED: OrderLifecycleStatus.CANCELLED,
+    }[mapped_status]
+
     error_message = None
     if mapped_status == OrderStatus.PAID:
         try:
-            allocate_package(order)
+            allocate_package(db, order)
         except Exception as exc:  # noqa: BLE001 — any fulfilment failure must be caught here
             order.fulfilment_status = FulfilmentStatus.FAILED
+            order.order_status = OrderLifecycleStatus.FULFILLMENT_FAILED
             error_message = str(exc)
             logger.exception("Guest checkout failed for order %s", order.id)
         else:
             order.fulfilment_status = FulfilmentStatus.COMPLETED
+            order.order_status = OrderLifecycleStatus.COMPLETED
             logger.info("Guest checkout success for order %s", order.id)
-        db.commit()
+
+    db.commit()
+
+    # Real transaction history — one row per delivery that actually
+    # caused a state transition (not the "already_paid" duplicate-skip
+    # path above, which isn't a new transaction, just a repeat
+    # notification for one already recorded).
+    invoice_id = _safe_str((payload.get("order") or {}).get("invoiceId")) or _safe_str(
+        payload.get("invoiceId")
+    )
+    db.add(
+        PaymentTransaction(
+            order_id=order.id,
+            provider="transfi",
+            transaction_id=entity_id,
+            invoice_id=invoice_id,
+            amount=order.price_bdt,
+            currency=order.currency,
+            status=mapped_status.value,
+            response_payload=payload,
+        )
+    )
+    db.commit()
+
+    _save_webhook_event(
+        db, event_type=entity_type, event_id=entity_id, payload=payload, processed=True
+    )
 
     return _save_log(
         db,

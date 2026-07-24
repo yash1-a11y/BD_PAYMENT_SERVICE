@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 
 from src.config.settings import get_settings
 from src.integrations.transfi import security
@@ -8,6 +9,22 @@ from src.integrations.transfi.schemas import IndividualDetails, PaymentInvoiceRe
 
 PAYMENT_INVOICE_PATH = "/checkout/payment-link/invoice"
 API_VERSION = "v1"
+
+# Tried in this order against the response's `data` object; first match
+# wins. Not assumed to be any one specific field — Transfi's confirmed
+# real response (Phase 3's Postman collection) only ever contains
+# `invoiceId`, but this stays a candidate list, not a hardcoded lookup,
+# in case a different Transfi endpoint/version exposes a different name
+# for what is semantically "the provider's stable payment reference" —
+# same defensive multi-candidate pattern already used in
+# webhooks/service.py::_extract_order_id_candidates for a different field.
+_PAYMENT_REFERENCE_CANDIDATES = ("invoiceId", "paymentId", "transactionId")
+
+
+@dataclass
+class PaymentInitiationResult:
+    payment_url: str
+    payment_reference: str | None
 
 
 def _split_name(full_name: str) -> tuple[str, str]:
@@ -27,7 +44,7 @@ def initiate_payment(
     customer_name: str,
     customer_email: str,
     customer_phone: str,
-) -> str:
+) -> PaymentInitiationResult:
     settings = get_settings()
     first_name, last_name = _split_name(customer_name)
 
@@ -87,4 +104,8 @@ def initiate_payment(
         raise TransfiRequestError(
             f"Transfi response did not contain a recognizable payment URL: {response!r}"
         )
-    return payment_url
+
+    payment_reference = next(
+        (data[key] for key in _PAYMENT_REFERENCE_CANDIDATES if data.get(key)), None
+    )
+    return PaymentInitiationResult(payment_url=payment_url, payment_reference=payment_reference)

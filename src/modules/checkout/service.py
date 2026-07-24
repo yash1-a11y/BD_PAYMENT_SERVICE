@@ -9,7 +9,7 @@ from src.integrations.transfi.exceptions import TransfiRequestError
 from src.integrations.transfi.service import initiate_payment as transfi_initiate_payment
 from src.modules.catalogue.models import BDLandingPage
 from src.modules.checkout.exceptions import OrderNotFoundError, PackageUnavailableError
-from src.modules.checkout.models import Order, OrderStatus
+from src.modules.checkout.models import Order, OrderLifecycleStatus, OrderStatus
 from src.modules.checkout.schemas import OrderCreate, OrderOut, OrderStatusOut
 
 
@@ -47,13 +47,28 @@ def initiate_payment(db: Session, payload: OrderCreate) -> OrderOut:
         # amount charged — never the Package System's own price fields, and
         # never anything trusted from the client request.
         price_bdt=entry.price_bdt,
+        payment_provider="transfi",
+        payment_status=OrderStatus.PENDING.value,
+        order_status=OrderLifecycleStatus.PENDING,
+        # Lightweight historical snapshot — package details otherwise
+        # always come live from the Package System API and are never
+        # stored permanently; this is the one deliberate exception,
+        # scoped to what was actually purchased at this moment. No `slug`
+        # field — nothing in the Package System's response has one, so
+        # it's left out rather than invented.
+        package_snapshot={
+            "package_id": entry.package_id,
+            "title": title,
+            "thumbnail": storefront.thumbnail_url,
+            "selling_price_bdt": str(entry.price_bdt),
+        },
     )
     db.add(order)
     db.commit()
     db.refresh(order)
 
     try:
-        payment_url = transfi_initiate_payment(
+        result = transfi_initiate_payment(
             order_reference=str(order.id),
             amount=float(entry.price_bdt),
             package_title=title,
@@ -69,8 +84,13 @@ def initiate_payment(db: Session, payload: OrderCreate) -> OrderOut:
         # leaving it ambiguously PENDING forever. Retrying is explicitly out
         # of scope for this phase.
         order.status = OrderStatus.FAILED
+        order.payment_status = OrderStatus.FAILED.value
+        order.order_status = OrderLifecycleStatus.PAYMENT_FAILED
         db.commit()
         raise
+
+    order.payment_reference = result.payment_reference
+    db.commit()
 
     return OrderOut(
         order_id=order.id,
@@ -78,7 +98,7 @@ def initiate_payment(db: Session, payload: OrderCreate) -> OrderOut:
         title=title,
         price_bdt=order.price_bdt,
         status=order.status.value,
-        payment_url=payment_url,
+        payment_url=result.payment_url,
         created_at=order.created_at,
     )
 

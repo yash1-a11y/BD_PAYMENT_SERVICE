@@ -5,6 +5,7 @@ import pytest
 
 from src.integrations.package_system.client import Plan, StorefrontPackage
 from src.integrations.transfi.exceptions import TransfiRequestError
+from src.integrations.transfi.service import PaymentInitiationResult
 from src.modules.catalogue.models import BDLandingPage
 from src.modules.checkout import service
 from src.modules.checkout.exceptions import OrderNotFoundError, PackageUnavailableError
@@ -66,8 +67,16 @@ def _order_payload(package_id="3937"):
     )
 
 
-def _patch_transfi(monkeypatch, payment_url="https://checkout.transfi.com/pay/abc123"):
-    monkeypatch.setattr(service, "transfi_initiate_payment", lambda **kwargs: payment_url)
+def _patch_transfi(
+    monkeypatch, payment_url="https://checkout.transfi.com/pay/abc123", payment_reference="inv_abc123"
+):
+    monkeypatch.setattr(
+        service,
+        "transfi_initiate_payment",
+        lambda **kwargs: PaymentInitiationResult(
+            payment_url=payment_url, payment_reference=payment_reference
+        ),
+    )
 
 
 def test_initiate_payment_succeeds_for_published_package(db_session, monkeypatch):
